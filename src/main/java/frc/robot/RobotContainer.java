@@ -4,15 +4,19 @@
 
 package frc.robot;
 
-import org.ejml.equation.ManagerFunctions.Input1;
+import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest;
-import com.ctre.phoenix6.mechanisms.swerve.SwerveModule.DriveRequestType;
+import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest.ForwardReference;
 
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
@@ -29,60 +33,123 @@ public class RobotContainer {
   private final CommandXboxController joystick = new CommandXboxController(0); // My joystick
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.DriveTrain; // My drivetrain
 
-  private final SwerveRequest.FieldCentric drive = new SwerveRequest.FieldCentric()
-      .withDeadband(MaxSpeed * 0.115).withRotationalDeadband(MaxAngularRate * 0.1) // Add a 10% deadband
-      .withDriveRequestType(DriveRequestType.OpenLoopVoltage); // I want field-centric
-                                                               // driving in open loop
-  private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
-  private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
-
   private final Telemetry logger = new Telemetry(MaxSpeed);
 
   private void configureBindings() {
-    drivetrain.setDefaultCommand( // Drivetrain will execute this command periodically
-        drivetrain.applyRequest(
-        () -> {
-            
-            double leftTrigger = joystick.getLeftTriggerAxis();
-            double rightTrigger = joystick.getRightTriggerAxis();
-            double rotate = 0.0;
-            if (leftTrigger < rightTrigger) {
-                rotate = -rightTrigger * MaxAngularRate;
-            } else {
-                rotate = leftTrigger * MaxAngularRate;
-            }
-            double rightJoyX = joystick.getRightX();
-            double rightJoyY = joystick.getRightY();
-            double leftJoyX = joystick.getLeftX();
-            double leftJoyY = joystick.getLeftY();
-            double inputX = 0;
-            double inputY = 0;
-            if (rightJoyX < 0.115 && rightJoyX > -0.115) {
-                inputX = leftJoyX * MaxSpeed;
-            } else {
-                inputX = rightJoyX * MaxSpeed * 0.15;
-            }
-            if (rightJoyY < 0.115 && rightJoyY > -0.115) {
-                inputY = leftJoyY * MaxSpeed;
-            } else {
-                inputY = rightJoyY * MaxSpeed * 0.15;                
-            }
-            
-          
-        
-            return drive.withVelocityX(-inputY) // Drive forward with
-                                                                                           // negative Y (forward)
-                .withVelocityY(-inputX) // Drive left with negative X (left)
-                .withRotationalRate(rotate * MaxAngularRate * 0.15);
-                // Drive counterclockwise with negative X (left)
+    //
+    // Drive Train
+    //
 
-          }));
-    
+    final var xFilter = new SlewRateLimiter(5);
+    final var yFilter = new SlewRateLimiter(5);
+    final var rotateFilter = new SlewRateLimiter(5);
+
+    DoubleSupplier rotationSupplier = () -> {
+        double leftTrigger = joystick.getHID().getLeftTriggerAxis();
+        double rightTrigger = joystick.getHID().getRightTriggerAxis();
+
+        double rotate = 0.0;
+        if (leftTrigger < rightTrigger) {
+          rotate = -rightTrigger;
+        } else {
+          rotate = leftTrigger;
+        }
+
+        return rotateFilter.calculate(rotate) * MaxAngularRate;
+    };
+
+    Supplier<Translation2d> translationSupplier = () -> {
+        // Read gamepad joystick state, and apply slew rate limiters
+        Translation2d move = new Translation2d(
+          // X Move Velocity - Forward
+          xFilter.calculate(-joystick.getHID().getLeftY()),
+          // Y Move Velocity - Strafe
+          yFilter.calculate(-joystick.getHID().getLeftX())
+        );
+        
+        return new Translation2d(
+            // Scale the speed of the robot by using a quadratic input curve.
+            // and convert the joystick values -1.0-1.0 to Meters Per Second
+            Math.pow(move.getNorm(), 2) * MaxSpeed, 
+            // Get the direction the joystick is pointing 
+            move.getAngle()
+        );
+    };
+
+    // Field-centric by default
+    final var fieldCentric = new SwerveRequest.FieldCentric();
+    drivetrain.setDefaultCommand( // Drivetrain will execute this command periodically
+        drivetrain.applyRequest(()->{
+            var translation = translationSupplier.get();
+
+            return fieldCentric.withDeadband(0.05)
+              .withVelocityX(translation.getX())
+              .withVelocityY(translation.getY())
+              .withRotationalRate(rotationSupplier.getAsDouble()
+            );
+        })
+    );
+
+    // Robot Centric when pressing A
+    final var robotCentric = new SwerveRequest.RobotCentric();
+    joystick.a().whileTrue(drivetrain.applyRequest(()->{
+        var translation = translationSupplier.get();
+
+        return robotCentric.withDeadband(0.05)
+          .withVelocityX(translation.getX())
+          .withVelocityY(translation.getY())
+          .withRotationalRate(rotationSupplier.getAsDouble()
+        );
+    }));
+
+    // Align to Amp by pressing left bumper
+    final var alignToAmp = new SwerveRequest.FieldCentricFacingAngle();
+    alignToAmp.HeadingController.setPID(0,0,0);
+    alignToAmp.HeadingController.enableContinuousInput(-Math.PI, Math.PI);
+    // This makes angles specified below to be in referece to the driver. This means
+    // angles will get automatically flipped if we are Red or Blue alliance.
+    // If set to ForwardReference.RedAlliance then the angles will not be flipped.
+    // TODO what is zero degrees?
+    alignToAmp.ForwardReference = ForwardReference.RedAlliance; 
+    joystick.leftBumper().whileTrue(drivetrain.applyRequest(()->{
+        var translation = translationSupplier.get();
+        return alignToAmp.withDeadband(0.05)
+          .withVelocityX(translation.getX())
+          .withVelocityY(translation.getY())
+          .withTargetDirection(Rotation2d.fromDegrees(90)
+        );
+    }));
+
+    // Align to Source by pressing right bumper
+    final var alignToSource = new SwerveRequest.FieldCentricFacingAngle();
+    // This makes angles specified below to be in referece to the driver. This means
+    // angles will get automatically flipped if we are Red or Blue alliance.
+    // If set to ForwardReference.RedAlliance then the angles will not be flipped.
+    // TODO what is zero degrees?
+    alignToAmp.ForwardReference = ForwardReference.OperatorPerspective; 
+    joystick.rightBumper().whileTrue(drivetrain.applyRequest(()->{
+        var translation = translationSupplier.get();
+
+        // The angle we need to face needs to change depending on which alliance we are
+        // on.
+        double angle = -120.0;
+        if (DriverStation.getAlliance().isPresent() && DriverStation.getAlliance().get() == Alliance.Blue) {
+          angle = -60.0;
+        }
+
+        return alignToSource.withDeadband(0.05)
+          .withVelocityX(translation.getX())
+          .withVelocityY(translation.getY())
+          .withTargetDirection(Rotation2d.fromDegrees(angle)
+        );
+    }));
+
+    // X-Stop
+    final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
     joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
-    joystick.b().whileTrue(drivetrain
-        .applyRequest(() -> point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))));
-    // reset the field-centric heading on left bumper press
-    joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldRelative()));
+
+    // Reset the field-centric heading on start press
+    joystick.start().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldRelative()));
 
     if (Utils.isSimulation()) {
       drivetrain.seedFieldRelative(new Pose2d(new Translation2d(), Rotation2d.fromDegrees(90)));
