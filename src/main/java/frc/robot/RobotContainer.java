@@ -4,6 +4,7 @@
 
 package frc.robot;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
@@ -45,6 +46,8 @@ public class RobotContainer {
     final var yFilter = new SlewRateLimiter(5);
     final var rotateFilter = new SlewRateLimiter(5);
 
+    BooleanSupplier slowModeSupplier = () -> joystick.getHID().getXButton();
+
     DoubleSupplier rotationSupplier = () -> {
         double leftTrigger = joystick.getHID().getLeftTriggerAxis();
         double rightTrigger = joystick.getHID().getRightTriggerAxis();
@@ -56,7 +59,7 @@ public class RobotContainer {
           rotate = leftTrigger;
         }
 
-        return rotateFilter.calculate(rotate) * MaxAngularRate;
+        rotate = rotateFilter.calculate(rotate) * MaxAngularRate;
     };
 
     Supplier<Translation2d> translationSupplier = () -> {
@@ -88,7 +91,7 @@ public class RobotContainer {
             double yMove = translation.getY();
             double rotate = rotationSupplier.getAsDouble();
 
-            if(joystick.getHID().getXButton()) {
+            if(slowModeSupplier.getAsBoolean()) {
               xMove *= 0.5;
               yMove *= 0.5;
               rotate *= 0.25;
@@ -110,11 +113,24 @@ public class RobotContainer {
     joystick.a().whileTrue(drivetrain.applyRequest(()->{
         var translation = translationSupplier.get();
 
-        return robotCentric.withDeadband(0.05)
-          .withVelocityX(translation.getX())
-          .withVelocityY(translation.getY())
-          .withRotationalRate(rotationSupplier.getAsDouble()
-        );
+        double xMove = translation.getX();
+        double yMove = translation.getY();
+        double rotate = rotationSupplier.getAsDouble();
+
+        if(slowModeSupplier.getAsBoolean()) {
+          xMove *= 0.5;
+          yMove *= 0.5;
+          rotate *= 0.25;
+        } else{
+          xMove *= 1.0;
+          yMove *= 1.0;
+          rotate *= 0.5;
+        }
+
+        return robotCentric
+          .withVelocityX(xMove)
+          .withVelocityY(yMove)
+          .withRotationalRate(rotate);
     }));
 
     // Align to Amp by pressing left bumper
@@ -128,9 +144,21 @@ public class RobotContainer {
     alignToAmp.ForwardReference = ForwardReference.RedAlliance; 
     joystick.leftBumper().whileTrue(drivetrain.applyRequest(()->{
         var translation = translationSupplier.get();
-        return alignToAmp.withDeadband(0.05)
-          .withVelocityX(translation.getX())
-          .withVelocityY(translation.getY())
+
+        double xMove = translation.getX();
+        double yMove = translation.getY();
+
+        if(slowModeSupplier.getAsBoolean()) {
+          xMove *= 0.5;
+          yMove *= 0.5;
+        } else{
+          xMove *= 1.0;
+          yMove *= 1.0;
+        }
+
+        return alignToAmp
+          .withVelocityX(xMove)
+          .withVelocityY(yMove)
           .withTargetDirection(Rotation2d.fromDegrees(90)
         );
     }));
@@ -145,6 +173,17 @@ public class RobotContainer {
     joystick.rightBumper().whileTrue(drivetrain.applyRequest(()->{
         var translation = translationSupplier.get();
 
+        double xMove = translation.getX();
+        double yMove = translation.getY();
+
+        if(slowModeSupplier.getAsBoolean()) {
+          xMove *= 0.5;
+          yMove *= 0.5;
+        } else{
+          xMove *= 1.0;
+          yMove *= 1.0;
+        }
+
         // The angle we need to face needs to change depending on which alliance we are
         // on.
         double angle = -120.0;
@@ -153,8 +192,8 @@ public class RobotContainer {
         }
 
         return alignToSource.withDeadband(0.05)
-          .withVelocityX(translation.getX())
-          .withVelocityY(translation.getY())
+          .withVelocityX(xMove)
+          .withVelocityY(yMove)
           .withTargetDirection(Rotation2d.fromDegrees(angle)
         );
     }));
