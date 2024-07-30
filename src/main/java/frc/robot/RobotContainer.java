@@ -11,6 +11,7 @@ import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest;
 import com.ctre.phoenix6.mechanisms.swerve.SwerveRequest.ForwardReference;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -62,9 +63,9 @@ public class RobotContainer {
         // Read gamepad joystick state, and apply slew rate limiters
         Translation2d move = new Translation2d(
           // X Move Velocity - Forward
-          xFilter.calculate(-joystick.getHID().getLeftY()),
+          MathUtil.applyDeadband(xFilter.calculate(-joystick.getHID().getLeftY()),.05),
           // Y Move Velocity - Strafe
-          yFilter.calculate(-joystick.getHID().getLeftX())
+          MathUtil.applyDeadband(yFilter.calculate(-joystick.getHID().getLeftX()),.05)
         );
         
         return new Translation2d(
@@ -82,11 +83,25 @@ public class RobotContainer {
         drivetrain.applyRequest(()->{
             var translation = translationSupplier.get();
 
-            return fieldCentric.withDeadband(0.05)
-              .withVelocityX(translation.getX())
-              .withVelocityY(translation.getY())
-              .withRotationalRate(rotationSupplier.getAsDouble()
-            );
+
+            double xMove = translation.getX();
+            double yMove = translation.getY();
+            double rotate = rotationSupplier.getAsDouble();
+
+            if(joystick.getHID().getXButton()) {
+              xMove *= 0.5;
+              yMove *= 0.5;
+              rotate *= 0.25;
+            } else{
+              xMove *= 1.0;
+              yMove *= 1.0;
+              rotate *= 0.5;
+            }
+
+            return fieldCentric
+              .withVelocityX(xMove)
+              .withVelocityY(yMove)
+              .withRotationalRate(rotate);
         })
     );
 
