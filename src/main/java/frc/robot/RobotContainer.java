@@ -59,7 +59,7 @@ public class RobotContainer {
           rotate = leftTrigger;
         }
 
-        rotate = rotateFilter.calculate(rotate) * MaxAngularRate;
+        return rotateFilter.calculate(rotate) * MaxAngularRate;
     };
 
     Supplier<Translation2d> translationSupplier = () -> {
