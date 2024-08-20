@@ -19,13 +19,17 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.ParallelCommandGroup;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.subsystems.ShooterFlywheel;
 
 public class RobotContainer {
+
 
   double leftTrigger;
   private double MaxSpeed = TunerConstants.kSpeedAt12VoltsMps; // kSpeedAt12VoltsMps desired top speed
@@ -36,7 +40,8 @@ public class RobotContainer {
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.DriveTrain; // My drivetrain
 
   private final Telemetry logger = new Telemetry(MaxSpeed);
-
+  private final ShooterFlywheel m_ShooterFlywheel = new ShooterFlywheel(1,false);
+  private final ShooterFlywheel m_ShooterFlywheel1 = new ShooterFlywheel(2,false);  
   private void configureBindings() {
     //
     // Drive Train
@@ -205,6 +210,17 @@ public class RobotContainer {
     // Reset the field-centric heading on start press
     joystick.start().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldRelative()));
 
+    joystick.povDown().whileTrue(new ParallelCommandGroup(
+      m_ShooterFlywheel.pidCommand(SmartDashboard.getNumber("rpm", 1000)),
+      m_ShooterFlywheel1.pidCommand(SmartDashboard.getNumber("rpm", 1000))
+    ));
+
+
+    joystick.povUp().whileTrue(new ParallelCommandGroup(
+      m_ShooterFlywheel.openLoopCommand(0.5),
+      m_ShooterFlywheel1.openLoopCommand(0.5)
+    ));
+    
     if (Utils.isSimulation()) {
       drivetrain.seedFieldRelative(new Pose2d(new Translation2d(), Rotation2d.fromDegrees(90)));
     }
@@ -212,6 +228,7 @@ public class RobotContainer {
   }
 
   public RobotContainer() {
+    SmartDashboard.putNumber("rpm", 1000);
     configureBindings();
   }
 
