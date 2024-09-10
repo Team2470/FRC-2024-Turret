@@ -24,11 +24,13 @@ public class ShooterFlywheel extends SubsystemBase {
   }
 
   private ControlMode m_controlMode = ControlMode.kOpenLoop;
+  private double m_demand;
 
-  private final PIDController m_pidController = new PIDController( 0.001, 0, 0);
+  private final PIDController m_pidController = new PIDController(0.001, 0, 0);
   private final TalonFX m_motor;
   private final VoltageOut m_motorRequest = new VoltageOut(0);
-  private double m_demand;
+
+
   
 
   
@@ -40,39 +42,39 @@ public class ShooterFlywheel extends SubsystemBase {
  
 	//m_motor.setInverted(isLeft);
   m_motor.setInverted(isInverted);
-	m_motor.getPosition().setUpdateFrequency(50);
+	m_motor.getVelocity().setUpdateFrequency(50);
+  m_motor.getMotorVoltage().setUpdateFrequency(50);
 	m_motor.optimizeBusUtilization();
 
   }
 
-  public void setVoltage(double voltage){
-  
-    m_motorRequest.withOutput(voltage);
-    m_motor.setControl(m_motorRequest);
-  }
 
   public double getRPM(){
-    return m_motor.getVelocity().getValueAsDouble();
+    return 60 * m_motor.getVelocity().getValueAsDouble();
   }
 
   @Override
   public void periodic() {
+
+  double outputVoltage = 0;
+
   SmartDashboard.putNumber("demand", m_demand);
   SmartDashboard.putNumber("FlywheelRPM", getRPM());
+  SmartDashboard.putNumber("Flywheel voltage", m_motor.getMotorVoltage().getValue());
 
 
-    double outputVoltage = 0;
   switch (m_controlMode) {
+
 	case kOpenLoop:
 		// Do openloop stuff here
 		outputVoltage = m_demand;
 		break;
 
 	case kPID:
-		m_pidController.setP(SmartDashboard.getNumber("kP", 0.001));
-		m_pidController.setI(SmartDashboard.getNumber("kI", 0));
-		m_pidController.setD(SmartDashboard.getNumber("kD", 0));
-		double kF = SmartDashboard.getNumber("kF",  0.00016666666);
+		m_pidController.setP(0.001);
+		m_pidController.setI(0);
+		m_pidController.setD(0);
+		double kF = (0.00016666666 * 12);
 
 		// Do PID stuff
 		outputVoltage = kF * m_demand + m_pidController.calculate(getRPM(), m_demand);
@@ -82,6 +84,8 @@ public class ShooterFlywheel extends SubsystemBase {
 		// What happened!?
 		break;
 	}
+
+	m_motor.setVoltage(outputVoltage);
 
 
 
@@ -93,6 +97,11 @@ public class ShooterFlywheel extends SubsystemBase {
     m_demand = rpm;
   }
 
+  public void setOutputVoltage(double OutputVoltage) {
+    m_controlMode = ControlMode.kOpenLoop;
+    m_demand = OutputVoltage;
+  }
+
   public Command pidCommand(DoubleSupplier rpmSupplier){
 	  return Commands.runEnd(
 	  () -> this.setPIDSetpoint(rpmSupplier.getAsDouble()), this::stop, this);
@@ -100,12 +109,10 @@ public class ShooterFlywheel extends SubsystemBase {
 
 
   public Command openLoopCommand(DoubleSupplier OutputVoltageSupplier) {
-
-
   	// Inline construction of command goes here.
   	// Subsystem::RunOnce implicitly requires `this` subsystem.
 	  return Commands.runEnd(
-	  	() -> this.setVoltage(OutputVoltageSupplier.getAsDouble()), this::stop, this);
+	  	() -> this.setOutputVoltage(OutputVoltageSupplier.getAsDouble()), this::stop, this);
 
   }
 
@@ -118,6 +125,8 @@ public class ShooterFlywheel extends SubsystemBase {
   }
 
   public void stop() {
-    setVoltage(0);
+    setOutputVoltage(0);
   }
+
+  
 }

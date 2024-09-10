@@ -30,6 +30,8 @@ import frc.robot.subsystems.ShooterFlywheel;
 
 public class RobotContainer {
 
+  
+
 
   double leftTrigger;
   private double MaxSpeed = TunerConstants.kSpeedAt12VoltsMps; // kSpeedAt12VoltsMps desired top speed
@@ -211,8 +213,12 @@ public class RobotContainer {
     joystick.start().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldRelative()));
 
     joystick.povDown().whileTrue(new ParallelCommandGroup(
-      m_ShooterFlywheel.pidCommand(SmartDashboard.getNumber("rpm", 1000)),
-      m_ShooterFlywheel1.pidCommand(SmartDashboard.getNumber("rpm", 1000))
+      m_ShooterFlywheel.pidCommand(SmartDashboard.getNumber("rpm", 0)),
+      m_ShooterFlywheel1.pidCommand(SmartDashboard.getNumber("rpm", 0))
+    ));
+    joystick.povLeft().whileTrue(new ParallelCommandGroup(
+      m_ShooterFlywheel.pidCommand(4000),
+      m_ShooterFlywheel1.pidCommand(4000)
     ));
 
 
@@ -228,7 +234,6 @@ public class RobotContainer {
   }
 
   public RobotContainer() {
-    SmartDashboard.putNumber("rpm", 1000);
     configureBindings();
   }
 
