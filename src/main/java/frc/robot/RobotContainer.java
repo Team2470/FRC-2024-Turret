@@ -24,6 +24,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.subsystems.Intake;
 
 public class RobotContainer {
 
@@ -34,10 +35,17 @@ public class RobotContainer {
   /* Setting up bindings for necessary control of the swerve drive platform */
   private final CommandXboxController joystick = new CommandXboxController(0); // My joystick
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.DriveTrain; // My drivetrain
-
+  private final Intake intake = new Intake();
+  
   private final Telemetry logger = new Telemetry(MaxSpeed);
 
   private void configureBindings() {
+    //
+    // Intake
+    //
+    joystick.rightBumper().whileTrue(intake.inCommand());
+    
+    joystick.leftBumper().whileTrue(intake.outCommand());
     //
     // Drive Train
     //
