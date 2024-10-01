@@ -25,6 +25,7 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.Intake;
+import frc.robot.subsystems.Turret;
 
 public class RobotContainer {
 
@@ -36,6 +37,7 @@ public class RobotContainer {
   private final CommandXboxController joystick = new CommandXboxController(0); // My joystick
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.DriveTrain; // My drivetrain
   private final Intake intake = new Intake();
+  private final Turret turret = new Turret();
   
   private final Telemetry logger = new Telemetry(MaxSpeed);
 
@@ -46,6 +48,14 @@ public class RobotContainer {
     joystick.rightBumper().whileTrue(intake.inCommand());
     
     joystick.leftBumper().whileTrue(intake.outCommand());
+
+    //
+    // Turret
+    //
+    joystick.povLeft().whileTrue(turret.openloopCommand(4)); //Counter Clockwise
+    joystick.povRight().whileTrue(turret.openloopCommand(-4)); //Clockwise
+
+
     //
     // Drive Train
     //
