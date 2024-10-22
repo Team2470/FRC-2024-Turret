@@ -93,6 +93,13 @@ public class Turret extends SubsystemBase {
     m_motor.getPosition().setUpdateFrequency(50);
     m_motor.optimizeBusUtilization();
 
+    SmartDashboard.putNumber("Turret PID kP", TurretConstants.kP);
+    SmartDashboard.putNumber("Turret PID kI", TurretConstants.kI);
+    SmartDashboard.putNumber("Turret PID kD", TurretConstants.kD);
+    SmartDashboard.putNumber("Turret PID kS", TurretConstants.kS);
+    SmartDashboard.putNumber("Turret PID kV", TurretConstants.kV);
+    SmartDashboard.putNumber("Turret PID kA", TurretConstants.kA);
+
   }
 
   public Command openloopCommand(double voltage){
@@ -140,6 +147,15 @@ public class Turret extends SubsystemBase {
         break;
 
       case kPID:
+        // Grab constants from shuffleboard
+        m_Feedforward = new SimpleMotorFeedforward(
+          SmartDashboard.getNumber("Turret PID kS", 0),
+          SmartDashboard.getNumber("Turret PID kV", 0),
+          SmartDashboard.getNumber("Turret PID kA", 0));
+        m_pidController.setP(SmartDashboard.getNumber("Turret PID kP", 0));
+        m_pidController.setI(SmartDashboard.getNumber("Turret PID kI", 0));
+        m_pidController.setD(SmartDashboard.getNumber("Turret PID kD", 0));
+
         double pidOutputVoltage = m_pidController.calculate(currentAngle.getRadians(), Math.toRadians(m_demand));
         double feedForwardVoltage = m_Feedforward.calculate(m_pidController.getSetpoint().velocity);
         double outputVoltage = pidOutputVoltage + feedForwardVoltage;
