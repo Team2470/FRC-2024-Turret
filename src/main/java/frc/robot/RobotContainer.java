@@ -52,6 +52,7 @@ public class RobotContainer {
     //
     // Turret
     //
+    joystick.povUp().whileTrue(turret.pidCommand(0));
     joystick.povLeft().whileTrue(turret.openloopCommand(4)); //Counter Clockwise
     joystick.povRight().whileTrue(turret.openloopCommand(-4)); //Clockwise
 

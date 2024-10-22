@@ -16,6 +16,8 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 
 import edu.wpi.first.math.controller.ArmFeedforward;
 import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.controller.SimpleMotorFeedforward;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -50,18 +52,15 @@ public class Turret extends SubsystemBase {
     TurretConstants.kD,
     new TrapezoidProfile.Constraints(TurretConstants.kMaxVelocity.getRadians(), TurretConstants.kMaxAcceleration.getRadians())
   );
-  // private SimpleFeed m_Feedforward =
-  // 	new ArmFeedforward(0, ShooterPivotConstants.kG, ShooterPivotConstants.kV, ShooterPivotConstants.kA);
+  private SimpleMotorFeedforward m_Feedforward =
+    new SimpleMotorFeedforward(TurretConstants.kS, TurretConstants.kV, TurretConstants.kA);
 
   
 
   /** Creates a new Turret. */
   public Turret() {
 
-    
-
-
-
+  
 
     //Turret encoder settings
     CANcoderConfiguration encoderConfig = new CANcoderConfiguration();
@@ -110,12 +109,30 @@ public class Turret extends SubsystemBase {
       );
   }
 
+  public Command pidCommand(double angleDegrees){
+    return Commands.runEnd(
+      ()-> {
+        m_controlMode = ControlMode.kPID;
+        m_demand = angleDegrees;
+      },
+     ()-> {
+        m_controlMode= ControlMode.kStop;
+        m_demand = 0.0;
+     },
+      this
+      );
+  }
+
+  public Rotation2d getAngle() {
+    return Rotation2d.fromRotations(m_motor.getPosition().getValueAsDouble());
+  }
+
   @Override
   public void periodic() {
     // This method will be called once per scheduler run
+    Rotation2d currentAngle = getAngle();
 
-    //Put stuff on SmartDashboard 
-    SmartDashboard.putNumber("Turret Rotations", m_motor.getPosition().getValueAsDouble());
+    
 
     switch (m_controlMode){
       case kOpenLoop:
@@ -123,8 +140,17 @@ public class Turret extends SubsystemBase {
         break;
 
       case kPID:
+        double pidOutputVoltage = m_pidController.calculate(currentAngle.getRadians(), Math.toRadians(m_demand));
+        double feedForwardVoltage = m_Feedforward.calculate(m_pidController.getSetpoint().velocity);
+        double outputVoltage = pidOutputVoltage + feedForwardVoltage;
+        m_motor.setVoltage(outputVoltage);
 
-
+        SmartDashboard.putNumber("Turret PID Voltage", pidOutputVoltage);
+        SmartDashboard.putNumber("Turret PID FeedForeward Voltage", feedForwardVoltage);
+        SmartDashboard.putNumber("Turret PID Output Voltage", outputVoltage);
+        SmartDashboard.putNumber("Turret PID Error", m_pidController.getPositionError());
+        
+        
         break;
 
       case kStop:
@@ -133,5 +159,8 @@ public class Turret extends SubsystemBase {
         break;
 
     }
+    //Put stuff on SmartDashboard 
+    SmartDashboard.putNumber("Turret Rotations", m_motor.getPosition().getValueAsDouble());
+    SmartDashboard.putNumber("Turret Angle", currentAngle.getDegrees());
   }
 }
