@@ -14,23 +14,45 @@ import com.ctre.phoenix6.signals.FeedbackSensorSourceValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 
+import edu.wpi.first.math.controller.ArmFeedforward;
+import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants.TurretConstants;
+
 
 public class Turret extends SubsystemBase {
-
+  
+  private enum ControlMode{
+      kStop,
+      kOpenLoop,
+      kPID
+  };
+  private ControlMode m_controlMode = ControlMode.kOpenLoop;
+  private double m_demand = 0.0;
+  
+  //
+  // Hardware
+  //
   private final TalonFX m_motor;
   private final CANcoder m_encoder;
   
 
-  private enum ControlMode{
-      kStop, kOpenLoop,
+  //
+  // PID
+  //
+  private final ProfiledPIDController m_pidController = new ProfiledPIDController(
+    TurretConstants.kP, 
+    TurretConstants.kI, 
+    TurretConstants.kD,
+    new TrapezoidProfile.Constraints(TurretConstants.kMaxVelocity.getRadians(), TurretConstants.kMaxAcceleration.getRadians())
+  );
+  // private SimpleFeed m_Feedforward =
+  // 	new ArmFeedforward(0, ShooterPivotConstants.kG, ShooterPivotConstants.kV, ShooterPivotConstants.kA);
 
-    };
-  private ControlMode m_controlMode = ControlMode.kOpenLoop;
-  private double m_demand = 0.0;
   
 
   /** Creates a new Turret. */
@@ -100,8 +122,12 @@ public class Turret extends SubsystemBase {
         m_motor.setVoltage(m_demand);
         break;
 
-      case kStop:
+      case kPID:
 
+
+        break;
+
+      case kStop:
       default:
         m_motor.stopMotor();
         break;
