@@ -83,9 +83,9 @@ public class Turret extends SubsystemBase {
 
     //Soft limits so we don't find hard limits
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
-    motorConfig.SoftwareLimitSwitch.ForwardSoftLimitThreshold = 100.0; //TODO Tune
+    motorConfig.SoftwareLimitSwitch.ForwardSoftLimitThreshold = 0.33; //TODO Tune
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
-    motorConfig.SoftwareLimitSwitch.ReverseSoftLimitThreshold = -100.0; //TODO Tune
+    motorConfig.SoftwareLimitSwitch.ReverseSoftLimitThreshold = -0.33; //TODO Tune
 
     m_motor = new TalonFX(31, "canivore");
     m_motor.getConfigurator().apply(motorConfig);
@@ -148,7 +148,7 @@ public class Turret extends SubsystemBase {
         SmartDashboard.putNumber("Turret PID Voltage", pidOutputVoltage);
         SmartDashboard.putNumber("Turret PID FeedForeward Voltage", feedForwardVoltage);
         SmartDashboard.putNumber("Turret PID Output Voltage", outputVoltage);
-        SmartDashboard.putNumber("Turret PID Error", m_pidController.getPositionError());
+        SmartDashboard.putNumber("Turret PID Error", Math.toDegrees(m_pidController.getPositionError()));
         
         
         break;
